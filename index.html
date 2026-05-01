@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beach Buggy Tamil</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; background: #87CEEB; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; background: #f4a460; margin: 0 auto; border-left: 5px dashed white; border-right: 5px dashed white; }
+        #ui { position: absolute; top: 10px; left: 10px; color: white; font-weight: bold; text-shadow: 2px 2px black; }
+        #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-around; }
+        .btn { width: 80px; height: 80px; background: rgba(0,0,0,0.5); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; user-select: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">Score: 0</div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="controls">
+        <div class="btn" id="leftBtn">◀</div>
+        <div class="btn" id="rightBtn">▶</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth > 400 ? 400 : window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let car = { x: canvas.width / 2 - 25, y: canvas.height - 100, w: 50, h: 80, color: 'red' };
+        let enemies = [];
+        let gameActive = true;
+
+        function drawCar(c) {
+            ctx.fillStyle = c.color;
+            ctx.fillRect(c.x, c.y, c.w, c.h);
+            // Wheels
+            ctx.fillStyle = 'black';
+            ctx.fillRect(c.x-5, c.y+10, 5, 20); ctx.fillRect(c.x+c.w, c.y+10, 5, 20);
+            ctx.fillRect(c.x-5, c.y+50, 5, 20); ctx.fillRect(c.x+c.w, c.y+50, 5, 20);
+        }
+
+        function update() {
+            if(!gameActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawCar(car);
+
+            if(Math.random() < 0.02) {
+                enemies.push({ x: Math.random() * (canvas.width - 50), y: -100, w: 50, h: 80, color: 'blue' });
+            }
+
+            enemies.forEach((enemy, index) => {
+                enemy.y += 5;
+                drawCar(enemy);
+
+                // Collision
+                if (car.x < enemy.x + enemy.w && car.x + car.w > enemy.x && car.y < enemy.y + enemy.h && car.y + car.h > enemy.y) {
+                    gameActive = false;
+                    alert("Game Over! Score: " + score);
+                    location.reload();
+                }
+
+                if(enemy.y > canvas.height) {
+                    enemies.splice(index, 1);
+                    score++;
+                    document.getElementById('ui').innerText = "Score: " + score;
+                }
+            });
+
+            requestAnimationFrame(update);
+        }
+
+        document.getElementById('leftBtn').ontouchstart = () => { if(car.x > 0) car.x -= 30; };
+        document.getElementById('rightBtn').ontouchstart = () => { if(car.x < canvas.width - car.w) car.x += 30; };
+
+        update();
+    </script>
+</body>
+</html>
