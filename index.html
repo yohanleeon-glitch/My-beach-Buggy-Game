@@ -1,135 +1,145 @@
 <!DOCTYPE html>
-<html lang="ta">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beach Buggy Realistic - Tamil</title>
+    <title>Ultimate 3D Beach Buggy Safari</title>
     <style>
-        body { margin: 0; background: #222; overflow: hidden; font-family: 'Arial', sans-serif; }
-        canvas { display: block; margin: 0 auto; background: #e2b35a; } /* மணல் நிறம் */
-        #ui { position: absolute; top: 10px; width: 100%; text-align: center; color: white; font-size: 24px; font-weight: bold; text-shadow: 2px 2px #000; pointer-events: none; }
-        #controls { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: space-around; }
-        .btn { width: 90px; height: 90px; background: rgba(255,255,255,0.2); border: 3px solid white; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 40px; user-select: none; -webkit-tap-highlight-color: transparent; }
-        .btn:active { background: rgba(255,255,255,0.5); transform: scale(0.9); }
+        body { margin: 0; overflow: hidden; background: #87CEEB; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.7); z-index: 10; pointer-events: none; }
+        #msg { position: absolute; top: 60px; width: 100%; text-align: center; color: yellow; font-size: 14px; z-index: 10; }
     </style>
 </head>
 <body>
     <div id="ui">Score: 0</div>
-    <canvas id="gameCanvas"></canvas>
-    <div id="controls">
-        <div class="btn" id="leftBtn">◀</div>
-        <div class="btn" id="rightBtn">▶</div>
-    </div>
+    <div id="msg">மொபைலைச் சாய்த்து (Tilt) காரைக் கட்டுப்படுத்துங்கள்!</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('ui');
+        let scene, camera, renderer, buggy, score = 0;
+        let objects = [], tiltX = 0;
+        let speed = 0.5;
 
-        canvas.width = Math.min(window.innerWidth, 450);
-        canvas.height = window.innerHeight;
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
 
-        let score = 0;
-        let gameActive = true;
-        let speed = 5;
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 6, 15);
+            camera.lookAt(0, 2, 0);
 
-        // கார் அமைப்பு
-        const car = {
-            x: canvas.width / 2 - 25,
-            y: canvas.height - 150,
-            w: 50,
-            h: 90,
-            targetX: canvas.width / 2 - 25
-        };
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-        const enemies = [];
-        const roadStrips = [];
+            // Sunlight ☀️
+            const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+            sun.position.set(10, 20, 10);
+            scene.add(sun);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-        // சாலைக் கோடுகள் (Road markings)
-        for (let i = 0; i < 5; i++) {
-            roadStrips.push({ x: canvas.width / 2 - 5, y: i * (canvas.height / 4), w: 10, h: 50 });
-        }
+            // Environment: Road, Sea, Sand
+            createWorld();
+            createBuggy();
 
-        function drawBuggy(x, y, color, isPlayer) {
-            // கார் உடல்
-            ctx.fillStyle = color;
-            ctx.fillRect(x, y + 10, 50, 70);
-            
-            // டயர்கள் (Realistic Wheels)
-            ctx.fillStyle = "#111";
-            ctx.fillRect(x - 8, y + 15, 12, 20); // FL
-            ctx.fillRect(x + 46, y + 15, 12, 20); // FR
-            ctx.fillRect(x - 8, y + 55, 12, 20); // RL
-            ctx.fillRect(x + 46, y + 55, 12, 20); // RR
-
-            // கண்ணாடிகள்
-            ctx.fillStyle = "#add8e6";
-            ctx.fillRect(x + 5, y + 25, 40, 15);
-            
-            if(isPlayer) {
-                // ஹெட்லைட்
-                ctx.fillStyle = "yellow";
-                ctx.fillRect(x + 5, y + 5, 10, 5);
-                ctx.fillRect(x + 35, y + 5, 10, 5);
+            // Mobile Tilt Control 📱
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (event) => {
+                    tiltX = event.gamma / 10; // Left/Right tilt
+                });
             }
+
+            animate();
         }
 
-        function update() {
-            if (!gameActive) return;
+        function createWorld() {
+            // Road 🛣️
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(10, 2000), new THREE.MeshPhongMaterial({ color: 0x333333 }));
+            road.rotation.x = -Math.PI / 2;
+            scene.add(road);
 
-            // மணல் பின்னணி மற்றும் சாலை
-            ctx.fillStyle = "#e2b35a"; // Sand
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = "#555"; // Road
-            ctx.fillRect(40, 0, canvas.width - 80, canvas.height);
+            // Sea 🌊 (Left)
+            const sea = new THREE.Mesh(new THREE.PlaneGeometry(60, 2000), new THREE.MeshPhongMaterial({ color: 0x00aaff, transparent: true, opacity: 0.7 }));
+            sea.rotation.x = -Math.PI / 2;
+            sea.position.set(-35, -0.1, 0);
+            scene.add(sea);
 
-            // நகரும் சாலைக் கோடுகள்
-            ctx.fillStyle = "white";
-            roadStrips.forEach(strip => {
-                strip.y += speed;
-                if (strip.y > canvas.height) strip.y = -50;
-                ctx.fillRect(strip.x, strip.y, strip.w, strip.h);
+            // Sand 🏖️ (Right)
+            const sand = new THREE.Mesh(new THREE.PlaneGeometry(60, 2000), new THREE.MeshPhongMaterial({ color: 0xffddaa }));
+            sand.rotation.x = -Math.PI / 2;
+            sand.position.set(35, -0.1, 0);
+            scene.add(sand);
+        }
+
+        // Creatures & Nature: 🌴🦀🐬🐢
+        function addCreature(type, x, z) {
+            let mesh;
+            if (type === 'palm') {
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 5), new THREE.MeshPhongMaterial({ color: 0x8b4513 }));
+                const leaves = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 8), new THREE.MeshPhongMaterial({ color: 0x00ff00 }));
+                leaves.position.y = 2.5;
+                mesh = new THREE.Group(); mesh.add(trunk); mesh.add(leaves);
+            } else if (type === 'crab') {
+                mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshPhongMaterial({ color: 0xff0000 }));
+            } else if (type === 'whale') {
+                mesh = new THREE.Mesh(new THREE.CapsuleGeometry(1, 4, 4, 8), new THREE.MeshPhongMaterial({ color: 0x444444 }));
+                mesh.rotation.x = Math.PI/2;
+            }
+
+            mesh.position.set(x, 0.5, z);
+            scene.add(mesh);
+            objects.push({ mesh, type });
+        }
+
+        function createBuggy() {
+            buggy = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.8, 2.5), new THREE.MeshPhongMaterial({ color: 0xff0000 }));
+            body.position.y = 0.6;
+            buggy.add(body);
+            // Wheels
+            const wGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
+            const wMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
+            [[0.8,0.5,1], [-0.8,0.5,1], [0.8,0.5,-1], [-0.8,0.5,-1]].forEach(p => {
+                const w = new THREE.Mesh(wGeo, wMat); w.rotation.z = Math.PI/2;
+                w.position.set(p[0], p[1], p[2]); buggy.add(w);
             });
+            scene.add(buggy);
+        }
 
-            // பிளேயர் கார் மூவ்மென்ட் (Smooth transition)
-            car.x += (car.targetX - car.x) * 0.2;
-            drawBuggy(car.x, car.y, "red", true);
+        function animate() {
+            requestAnimationFrame(animate);
 
-            // எதிரி கார்கள்
-            if (Math.random() < 0.02) {
-                const lane = Math.random() > 0.5 ? canvas.width/2 + 20 : canvas.width/2 - 70;
-                enemies.push({ x: lane, y: -100, w: 50, h: 90 });
-            }
+            // Car Tilt Movement
+            buggy.position.x += tiltX * 0.5;
+            buggy.position.x = Math.max(-4, Math.min(4, buggy.position.x)); // Limit to road
+            buggy.rotation.z = -tiltX * 0.1; // Lean into turn
 
-            enemies.forEach((enemy, index) => {
-                enemy.y += speed;
-                drawBuggy(enemy.x, enemy.y, "blue", false);
+            // Spawn Creatures
+            if (Math.random() < 0.05) addCreature('palm', 7, -100); // Right side trees
+            if (Math.random() < 0.02) addCreature('crab', 5 + Math.random()*10, -100); // Sand crabs
+            if (Math.random() < 0.01) addCreature('whale', -20, -150); // Sea whales
 
-                // விபத்து (Collision)
-                if (car.x < enemy.x + enemy.w && car.x + 50 > enemy.x && car.y < enemy.y + enemy.h && car.y + 90 > enemy.y) {
-                    gameActive = false;
-                    alert("விபத்து! உங்கள் ஸ்கோர்: " + score);
+            objects.forEach((obj, i) => {
+                obj.mesh.position.z += speed;
+                
+                // Interaction
+                if (obj.type !== 'palm' && obj.type !== 'whale' && buggy.position.distanceTo(obj.mesh.position) < 2) {
+                    alert("Game Over! Score: " + score);
                     location.reload();
                 }
 
-                // ஸ்கோர் மற்றும் வேகம் அதிகரிப்பு
-                if (enemy.y > canvas.height) {
-                    enemies.splice(index, 1);
-                    score++;
-                    scoreElement.innerText = "Score: " + score;
-                    if(score % 5 === 0) speed += 0.5; // வேகம் கூடும்
+                if (obj.mesh.position.z > 20) {
+                    scene.remove(obj.mesh);
+                    objects.splice(i, 1);
+                    if(obj.type === 'palm') { score++; document.getElementById('ui').innerText = "Score: " + score; }
                 }
             });
 
-            requestAnimationFrame(update);
+            renderer.render(scene, camera);
         }
 
-        // கட்டுப்பாடுகள்
-        document.getElementById('leftBtn').ontouchstart = (e) => { e.preventDefault(); if (car.targetX > 60) car.targetX -= 100; };
-        document.getElementById('rightBtn').ontouchstart = (e) => { e.preventDefault(); if (car.targetX < canvas.width - 110) car.targetX += 100; };
-
-        update();
+        init();
     </script>
 </body>
 </html>
